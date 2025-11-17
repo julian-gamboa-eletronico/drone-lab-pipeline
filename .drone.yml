@@ -1,9 +1,11 @@
 kind: pipeline
 type: docker
-name: default
+name: playwright
 
 steps:
-  - name: build
-    image: alpine
+  - name: test-e2e
+    image: mcr.microsoft.com/playwright:v1.44.0-jammy
     commands:
-      - echo "Pipeline do Drone funcionando!"
+      - npm install
+      - npx playwright install --with-deps
+      - npx playwright test
