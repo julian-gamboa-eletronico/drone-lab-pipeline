@@ -2,6 +2,10 @@ kind: pipeline
 type: docker
 name: playwright
 
+trigger:
+  event:
+    - promote
+
 steps:
   - name: test-e2e
     image: mcr.microsoft.com/playwright:v1.44.0-jammy
