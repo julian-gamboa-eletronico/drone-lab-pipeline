@@ -8,8 +8,7 @@ trigger:
 
 steps:
   - name: test-e2e
-    image: mcr.microsoft.com/playwright:v1.44.0-jammy
+    image: playwright-clicks:latest
     commands:
       - npm install
-      - npx playwright install --with-deps
       - npx playwright test
