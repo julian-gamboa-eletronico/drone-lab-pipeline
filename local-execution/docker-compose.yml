@@ -1,0 +1,91 @@
+# ============================================================================
+# ESSENCIAL: Este docker-compose.yml é OBRIGATÓRIO para executar o Drone CI
+# ============================================================================
+# 
+# Este arquivo configura o ambiente completo do Drone CI localmente:
+# - drone-server: Servidor principal do Drone CI (interface web e API)
+# - drone-runner: Executor que roda os pipelines em containers Docker
+#
+# SEM este arquivo, o Drone CI não funcionará. Ele é a base de toda a
+# infraestrutura necessária para executar os pipelines definidos em .drone.yml
+#
+# Para iniciar o ambiente:
+#   docker-compose up -d
+#
+# Para parar o ambiente:
+#   docker-compose down
+#
+# Acesse a interface web em: http://localhost:8080
+# ============================================================================
+
+version: "3"
+
+# ============================================================================
+# IMPORTANTE: Este arquivo usa variáveis de ambiente do arquivo .env
+# Crie o arquivo .env baseado no .env.example antes de executar
+# ============================================================================
+
+services:
+  # ========================================================================
+  # DRONE SERVER - ESSENCIAL
+  # ========================================================================
+  # Servidor principal do Drone CI que:
+  # - Gerencia a interface web (acessível em http://localhost:8080)
+  # - Processa webhooks do GitHub/GitLab
+  # - Coordena a execução dos pipelines
+  # - Armazena dados de builds, logs e configurações
+  # ========================================================================
+  drone-server:
+    image: drone/drone:2
+    container_name: drone-server
+    ports:
+      - 8080:80  # Porta para acessar a interface web
+    volumes:
+      - ./drone-data:/data  # Persistência de dados (builds, logs, etc.)
+    restart: always
+    env_file:
+      - .env  # Carrega variáveis de ambiente do arquivo .env (NÃO commitar este arquivo!)
+    environment:
+      # Credenciais OAuth do GitHub (carregadas do arquivo .env por segurança)
+      # ⚠️ NUNCA commite credenciais! Use o arquivo .env que está no .gitignore
+      DRONE_GITHUB_CLIENT_ID: ${DRONE_GITHUB_CLIENT_ID}
+      DRONE_GITHUB_CLIENT_SECRET: ${DRONE_GITHUB_CLIENT_SECRET}
+      # Configuração do servidor
+      DRONE_SERVER_HOST: ${DRONE_SERVER_HOST:-localhost:8080}
+      DRONE_SERVER_PROTO: ${DRONE_SERVER_PROTO:-http}
+      # Criação automática de usuário admin (ESSENCIAL para primeiro acesso)
+      DRONE_USER_CREATE: ${DRONE_USER_CREATE:-username:julian-gamboa-eletronico,admin:true}
+      # Secret compartilhado entre server e runner (deve ser o mesmo em ambos)
+      DRONE_RPC_SECRET: ${DRONE_RPC_SECRET:-mysupersecret}
+
+  # ========================================================================
+  # DRONE RUNNER - ESSENCIAL
+  # ========================================================================
+  # Executor que:
+  # - Recebe tarefas do drone-server via RPC
+  # - Executa os pipelines em containers Docker
+  # - Gerencia o ciclo de vida dos containers de build
+  # - Reporta resultados de volta ao server
+  #
+  # SEM o runner, os pipelines não serão executados!
+  # ========================================================================
+  drone-runner:
+    image: drone/drone-runner-docker:1
+    container_name: drone-runner
+    restart: always
+    depends_on:
+      - drone-server  # Runner só inicia após o server estar pronto
+    volumes:
+      # ESSENCIAL: Permite ao runner criar e gerenciar containers Docker
+      # Sem este volume, o runner não consegue executar os pipelines!
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - .env  # Carrega variáveis de ambiente do arquivo .env
+    environment:
+      # Configuração de conexão RPC com o server
+      DRONE_RPC_PROTO: ${DRONE_RPC_PROTO:-http}
+      DRONE_RPC_HOST: ${DRONE_RPC_HOST:-drone-server}
+      # Secret DEVE ser o mesmo do drone-server
+      DRONE_RPC_SECRET: ${DRONE_RPC_SECRET:-mysupersecret}
+      # Número máximo de pipelines executados simultaneamente
+      DRONE_RUNNER_CAPACITY: ${DRONE_RUNNER_CAPACITY:-2}
